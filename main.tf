@@ -150,8 +150,8 @@ resource "google_compute_autoscaler" "asg" {
     cooldown_period = 60
 
     cpu_utilization {
-      # Scale out when average CPU > 20%
-      target = 0.2
+      # Scale out when average CPU > 1%
+      target = 0.01
     }
   }
 }
@@ -176,7 +176,7 @@ resource "google_compute_backend_service" "backend" {
   backend {
     group           = google_compute_instance_group_manager.mig.instance_group
     balancing_mode  = "UTILIZATION"
-    max_utilization = 0.3
+    max_utilization = 0.8
   }
 }
 
