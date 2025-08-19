@@ -97,11 +97,6 @@ resource "google_compute_instance_template" "instance_template" {
   SCRIPT
 }
 
-  lifecycle {
-    create_before_destroy = true
-  }
-}
-
 # -------------------------------------
 # Managed Instance Group (zonal)
 # -------------------------------------
