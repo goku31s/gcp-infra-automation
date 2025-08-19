@@ -8,16 +8,16 @@ resource "google_compute_network" "vpc" {
 }
 
 resource "google_compute_subnetwork" "subnet" {
-  name                   = local.names.subnet
-  ip_cidr_range          = var.subnet_cidr
-  network                = google_compute_network.vpc.id
-  region                 = var.region
+  name                     = local.names.subnet
+  ip_cidr_range            = var.subnet_cidr
+  network                  = google_compute_network.vpc.id
+  region                   = var.region
   private_ip_google_access = true
 }
 
-# -------------------------------------
-# Firewall (targeted to "web" tag)
-# -------------------------------------
+# -------------------------------
+# Firewall Rules
+# -------------------------------
 resource "google_compute_firewall" "allow_http_https" {
   name    = local.names.fw_http_https
   network = google_compute_network.vpc.id
@@ -60,9 +60,9 @@ resource "google_compute_firewall" "allow_lb_health_checks" {
   ]
 }
 
-# -------------------------------------
-# Instance Template (global resource)
-# -------------------------------------
+# -------------------------------
+# Instance Template
+# -------------------------------
 resource "google_compute_instance_template" "instance_template" {
   name         = local.names.instance_template
   machine_type = var.instance_type
@@ -83,92 +83,71 @@ resource "google_compute_instance_template" "instance_template" {
   metadata_startup_script = <<-EOT
     #!/bin/bash
     apt-get update -y
-    apt-get install -y python3 curl
+    apt-get install -y nginx curl
 
-    # Fetch instance hostname from metadata
+    # Fetch dynamic metadata
     HOSTNAME=$(curl -s -H "Metadata-Flavor: Google" \
       http://metadata.google.internal/computeMetadata/v1/instance/hostname)
+    PROJECT_ID=$(curl -s -H "Metadata-Flavor: Google" \
+      http://metadata.google.internal/computeMetadata/v1/project/project-id)
+    ZONE=$(curl -s -H "Metadata-Flavor: Google" \
+      http://metadata.google.internal/computeMetadata/v1/instance/zone | awk -F/ '{print $NF}')
 
-    # Create Python webserver
-    cat > /opt/webserver.py << EOF
-import http.server
-import socketserver
-
-PORT = 80
-
-HTML_PAGE = f"""\
+    # Create styled HTML page
+    cat > /var/www/html/index.html << EOF
 <!DOCTYPE html>
 <html>
 <head>
-    <title>GCP Project Demo</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 40px; background-color: #f4f4f9; }
-        h1 { color: #2c3e50; }
-        h2 { color: #34495e; }
-        .hostname { margin-top: 20px; padding: 15px; background: #dff9fb; border: 2px solid #22a6b3; font-size: 18px; }
-        .section { margin-bottom: 25px; }
-    </style>
+  <title>GCP Live Demo</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      text-align: center;
+      background: linear-gradient(to right, #1e3c72, #2a5298);
+      color: white;
+      padding: 50px;
+    }
+    .container {
+      background: rgba(255, 255, 255, 0.1);
+      padding: 30px;
+      border-radius: 15px;
+      display: inline-block;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
+    }
+    h1 {
+      color: #FFD700;
+      margin-bottom: 20px;
+    }
+    p {
+      font-size: 18px;
+      margin: 10px 0;
+    }
+    .highlight {
+      font-weight: bold;
+      color: #00FFCC;
+    }
+  </style>
 </head>
 <body>
-    <h1>GCP Cloud Computing & DevOps Project</h1>
-    
-    <div class="section">
-        <h2>Broad Area of Work</h2>
-        <p>Cloud Computing, Infrastructure Automation, and DevOps on GCP.</p>
-        <p><b>Key Technologies:</b> Terraform, Compute Engine, VPC Networking, Load Balancing, Autoscaling, Cloud Build.</p>
-    </div>
-
-    <div class="section">
-        <h2>Background</h2>
-        <p>This is a self-initiated academic project to gain hands-on experience in deploying scalable infrastructure using GCP and DevOps tools.</p>
-        <p>Traditionally, deployments required manual steps and physical servers. Using Terraform and GCP, we achieve programmable, scalable, and automated deployments.</p>
-    </div>
-
-    <div class="section">
-        <h2>Objectives</h2>
-        <ul>
-            <li>Provision infrastructure with Terraform (VPC, Subnet, Firewall, MIG, Load Balancer)</li>
-            <li>Deploy a Python web server that shows the serving VM hostname</li>
-            <li>Automate infra changes with Cloud Build (CI/CD)</li>
-            <li>Simulate load to trigger autoscaling and test LB behavior</li>
-        </ul>
-    </div>
-
-    <div class="section">
-        <h2>Scope</h2>
-        <ul>
-            <li>In-scope: Terraform provisioning, Python app, Cloud Build pipeline, Load simulation</li>
-            <li>Out-of-scope: Complex web apps, external DBs, advanced security hardening</li>
-        </ul>
-    </div>
-
-    <div class="hostname">
-        <b>>> You are currently served by VM:</b> {HOSTNAME}
-    </div>
+  <div class="container">
+    <h1>🚀 GCP Project Live Demo</h1>
+    <p><span class="highlight">Project ID:</span> ${PROJECT_ID}</p>
+    <p><span class="highlight">Zone:</span> ${ZONE}</p>
+    <p><span class="highlight">VM Hostname:</span> ${HOSTNAME}</p>
+    <p>This page is being served through a <strong>Load Balancer</strong>. Refresh to see rotation across multiple VMs 🎯</p>
+  </div>
 </body>
 </html>
-"""
-
-class Handler(http.server.BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
-        self.wfile.write(HTML_PAGE.encode())
-
-with socketserver.TCPServer(("", PORT), Handler) as httpd:
-    print(f"Serving on port {PORT}")
-    httpd.serve_forever()
 EOF
 
-    # Run the Python webserver in background
-    nohup python3 /opt/webserver.py > /var/log/webserver.log 2>&1 &
+    systemctl restart nginx
+    systemctl enable nginx
   EOT
 }
 
-# -------------------------------------
-# Managed Instance Group (zonal)
-# -------------------------------------
+# -------------------------------
+# Managed Instance Group
+# -------------------------------
 resource "google_compute_instance_group_manager" "mig" {
   name               = local.names.mig
   base_instance_name = "web"
@@ -190,10 +169,10 @@ resource "google_compute_instance_group_manager" "mig" {
   }
 
   update_policy {
-    type                          = "PROACTIVE"
-    minimal_action                = "RESTART"
-    max_surge_fixed               = 1
-    max_unavailable_fixed         = 1
+    type                           = "PROACTIVE"
+    minimal_action                 = "RESTART"
+    max_surge_fixed                = 1
+    max_unavailable_fixed          = 1
     most_disruptive_allowed_action = "REPLACE"
   }
 
@@ -216,20 +195,20 @@ resource "google_compute_autoscaler" "asg" {
   }
 }
 
-# -------------------------------------
-# HTTP Load Balancer (External, Classic)
-# -------------------------------------
+# -------------------------------
+# HTTP Load Balancer
+# -------------------------------
 resource "google_compute_http_health_check" "hc" {
   name               = local.names.hc
   request_path       = "/"
-  check_interval_sec = 5
-  timeout_sec        = 5
+  check_interval_sec = 10
+  timeout_sec        = 60
 }
 
 resource "google_compute_backend_service" "backend" {
   name                  = local.names.backend
   protocol              = "HTTP"
-  timeout_sec           = 10
+  timeout_sec           = 30
   health_checks         = [google_compute_http_health_check.hc.id]
   load_balancing_scheme = "EXTERNAL"
 
