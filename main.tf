@@ -88,13 +88,14 @@ resource "google_compute_instance_template" "instance_template" {
 
   metadata_startup_script = <<-SCRIPT
     #!/bin/bash
-    set -euxo pipefail
     apt-get update
-    apt-get install -y python3
-    echo "Hostname is $(hostname)" > /home/hostname.html
-    # Run Python simple HTTP server on port 80
-    nohup python3 -m http.server 80 --directory /home &>/var/log/python_server.log &
+    apt-get install -y apache2
+    echo "Hostname is $(hostname)" > /var/www/html/index.html
+    systemctl restart apache2
+    systemctl enable ssh
+    systemctl restart ssh
   SCRIPT
+}
 
   lifecycle {
     create_before_destroy = true
