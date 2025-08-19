@@ -6,9 +6,7 @@ steps:
     args:
       - -c
       - |
-        terraform init \
-          -backend-config="powerful-bounty-469218-q0-tfstate" \
-          -backend-config="prefix=terraform/state"
+        terraform init 
 
   # Step 2: Terraform plan
   - name: hashicorp/terraform:1.5.7
