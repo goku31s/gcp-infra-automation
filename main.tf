@@ -83,7 +83,7 @@ resource "google_compute_instance_template" "instance_template" {
   network_interface {
     network    = google_compute_network.vpc.id
     subnetwork = google_compute_subnetwork.subnet.id
-    access_config {} # Allow external IPs for SSH + testing
+    access_config {} 
   }
 
   metadata_startup_script = <<-SCRIPT
@@ -113,7 +113,7 @@ resource "google_compute_instance_group_manager" "mig" {
   target_size = 2
 
   version {
-    instance_template = google_compute_instance_template.tpl.self_link
+    instance_template = google_compute_instance_template.instance_template.self_link
   }
 
   named_port {
@@ -134,7 +134,7 @@ resource "google_compute_instance_group_manager" "mig" {
     most_disruptive_allowed_action = "REPLACE"
   }
 
-  depends_on = [google_compute_instance_template.tpl]
+  depends_on = [google_compute_instance_template.instance_template]
 }
 
 # Autoscaler for the MIG
@@ -175,13 +175,13 @@ resource "google_compute_backend_service" "backend" {
   backend {
     group           = google_compute_instance_group_manager.mig.instance_group
     balancing_mode  = "UTILIZATION"
-    max_utilization = 0.8
+    max_utilization = 0.2
   }
 }
 
 resource "google_compute_url_map" "urlmap" {
   name            = local.names.urlmap
-  default_service = google_compute_backend_service.be.id
+  default_service = google_compute_backend_service.backend.id
 }
 
 resource "google_compute_target_http_proxy" "proxy" {
