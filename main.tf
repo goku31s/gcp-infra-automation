@@ -86,15 +86,136 @@ resource "google_compute_instance_template" "instance_template" {
     access_config {} 
   }
 
-  metadata_startup_script = <<-SCRIPT
-    #!/bin/bash
-    apt-get update
-    apt-get install -y apache2
-    echo "Hostname is $(hostname)" > /var/www/html/index.html
-    systemctl restart apache2
-    systemctl enable ssh
-    systemctl restart ssh
-  SCRIPT
+metadata_startup_script = <<-SCRIPT
+  #!/bin/bash
+  apt-get update -y
+  apt-get install -y python3
+
+  cat > /var/www/project.html <<'EOF'
+  <!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <title>GCP Infra Automation Project</title>
+    <style>
+      body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
+        color: #fff;
+        margin: 0;
+        padding: 40px;
+        text-align: center;
+      }
+      h1 {
+        font-size: 3em;
+        color: #ffdd57;
+      }
+      h2 {
+        margin-top: 40px;
+        color: #4ee1ec;
+      }
+      p, li {
+        font-size: 1.1em;
+        line-height: 1.6;
+        max-width: 900px;
+        margin: 10px auto;
+        text-align: justify;
+      }
+      ul {
+        list-style-type: "✔ ";
+        padding-left: 0;
+      }
+      .card {
+        background: rgba(0,0,0,0.6);
+        padding: 20px;
+        margin: 25px auto;
+        border-radius: 12px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+        max-width: 1000px;
+      }
+      footer {
+        margin-top: 40px;
+        font-size: 0.85em;
+        opacity: 0.7;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>🚀 GCP Infrastructure Automation Project</h1>
+
+    <div class="card">
+      <h2>Broad Area of Work</h2>
+      <p>
+        This project is part of the academic areas of <strong>Cloud Computing</strong>, 
+        <strong>Infrastructure Automation</strong>, and <strong>DevOps</strong>, with a strong 
+        focus on the <strong>Google Cloud Platform (GCP)</strong>.
+      </p>
+      <ul>
+        <li>Infrastructure as Code (IaC) using Terraform</li>
+        <li>Cloud-native resource provisioning on GCP</li>
+        <li>CI/CD Automation using Google Cloud Build</li>
+        <li>Compute Engine, VPC networking, Load Balancing, and Autoscaling</li>
+        <li>Hosting a basic Python web application served from Managed Instance Groups</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Background</h2>
+      <p>
+        This is a self-initiated academic project motivated by the goal of gaining hands-on 
+        experience in deploying scalable infrastructure using GCP and automating the process 
+        with modern DevOps tools.
+      </p>
+      <p>
+        Traditionally, deploying a web application required manual steps and physical servers. 
+        GCP’s managed services, combined with Terraform and Cloud Build, allow quick, scalable, 
+        and programmable deployment. The Python web server demonstrates load balancing and 
+        auto-scaling behavior clearly.
+      </p>
+    </div>
+
+    <div class="card">
+      <h2>Objectives</h2>
+      <ul>
+        <li>Provision VPC, subnet, firewall rules (port 80), and compute infrastructure</li>
+        <li>Create instance template for Python web server</li>
+        <li>Configure Managed Instance Group with autoscaling</li>
+        <li>Deploy HTTP Load Balancer with health checks</li>
+        <li>Host a Python web page displaying VM hostname</li>
+        <li>Automate infra changes via Cloud Build CI/CD</li>
+        <li>Simulate traffic to test autoscaling and balancing</li>
+      </ul>
+    </div>
+
+    <div class="card">
+      <h2>Scope of Work</h2>
+      <p><strong>In Scope:</strong></p>
+      <ul>
+        <li>Terraform modules for GCP infra</li>
+        <li>Python HTTP server serving VM hostname</li>
+        <li>VPC, firewall, MIG, Load Balancer creation</li>
+        <li>CI/CD pipeline with Cloud Build</li>
+        <li>Load testing and monitoring autoscaling</li>
+      </ul>
+      <p><strong>Out of Scope:</strong></p>
+      <ul>
+        <li>Complex web applications / database integration</li>
+        <li>External web servers like Nginx/Apache</li>
+        <li>Advanced security hardening</li>
+      </ul>
+    </div>
+
+    <footer>
+      &copy; 2025 Sukrit Singh | Academic Project – GCP Infrastructure Automation
+    </footer>
+  </body>
+  </html>
+  EOF
+
+  # Start Python HTTP server on port 80
+  cd /var/www
+  nohup python3 -m http.server 80 --directory /var/www > server.log 2>&1 &
+SCRIPT
 }
 
 # -------------------------------------
