@@ -1,0 +1,45 @@
+steps:
+  # Step 1: Setup Terraform
+  - name: hashicorp/terraform:1.5.7
+    id: init
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        terraform init
+
+  # Step 2: Validate Terraform
+  - name: hashicorp/terraform:1.5.7
+    id: validate
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        terraform validate
+
+  # Step 3: Plan
+  - name: hashicorp/terraform:1.5.7
+    id: plan
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        terraform plan -out=tfplan
+
+  # Step 4: Apply
+  - name: hashicorp/terraform:1.5.7
+    id: apply
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        terraform apply -auto-approve tfplan
+
+options:
+  logging: CLOUD_LOGGING_ONLY
+
+# Store artifacts/logs
+artifacts:
+  objects:
+    location: gs://$PROJECT_ID-cloudbuild-artifacts/
+    paths: ["*"]
