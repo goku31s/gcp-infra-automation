@@ -100,6 +100,7 @@ cat > /app/web_server.py << 'PYTHON_SCRIPT'
 from http.server import BaseHTTPRequestHandler, HTTPServer
 import socket
 import datetime
+import os
 
 class WebServerHandler(BaseHTTPRequestHandler):
     def do_GET(self):
@@ -110,6 +111,11 @@ class WebServerHandler(BaseHTTPRequestHandler):
             
             hostname = socket.gethostname()
             current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            # Read environment variables or use defaults
+            project_id = os.environ.get('PROJECT_ID', 'Not available')
+            zone = os.environ.get('ZONE', 'Not available')
+            internal_ip = os.environ.get('INTERNAL_IP', 'Not available')
             
             html_content = f"""
 <!DOCTYPE html>
@@ -300,9 +306,9 @@ class WebServerHandler(BaseHTTPRequestHandler):
             <div class="info-card">
                 <h3>Instance Information</h3>
                 <p><strong>Hostname:</strong> {hostname}</p>
-                <p><strong>Project ID:</strong> __PROJECT_ID__</p>
-                <p><strong>Zone:</strong> __ZONE__</p>
-                <p><strong>Internal IP:</strong> __INTERNAL_IP__</p>
+                <p><strong>Project ID:</strong> {project_id}</p>
+                <p><strong>Zone:</strong> {zone}</p>
+                <p><strong>Internal IP:</strong> {internal_ip}</p>
                 <p><strong>Server Time:</strong> {current_time}</p>
             </div>
             
@@ -386,30 +392,47 @@ class WebServerHandler(BaseHTTPRequestHandler):
     </div>
 </body>
 </html>
+"""
+            self.wfile.write(html_content.encode('utf-8'))
+        elif self.path == '/health':
+            self.send_response(200)
+            self.send_header('Content-type', 'text/plain')
+            self.end_headers()
+            self.wfile.write(b'Healthy')
+        else:
+            self.send_response(404)
+            self.end_headers()
+            self.wfile.write(b'Not Found')
+
+def run_server():
+    server_address = ('', 80)
+    httpd = HTTPServer(server_address, WebServerHandler)
+    print('Web server started on port 80...')
+    httpd.serve_forever()
+
+if __name__ == '__main__':
+    run_server()
 PYTHON_SCRIPT
 
-# Replace placeholders with actual values
-sed -i "s/__PROJECT_ID__/${PROJECT_ID}/g" /app/web_server.py
-sed -i "s/__ZONE__/${ZONE}/g" /app/web_server.py
-sed -i "s/__INTERNAL_IP__/${INTERNAL_IP}/g" /app/web_server.py
+# Set environment variables for the Python script
+export PROJECT_ID="$PROJECT_ID"
+export ZONE="$ZONE"
+export INTERNAL_IP="$INTERNAL_IP"
 
 # Create directory and start Python server
 mkdir -p /app
 cd /app
 
-# Start Python web server on port 80
-nohup python3 /app/web_server.py 80 > /var/log/web_server.log 2>&1 &
-
-# Create simple health check endpoint
-echo "Healthy" > /app/health
-nohup python3 -m http.server 8080 --directory /app > /var/log/health_server.log 2>&1 &
+# Start Python web server on port 80 with environment variables
+nohup env PROJECT_ID="$PROJECT_ID" ZONE="$ZONE" INTERNAL_IP="$INTERNAL_IP" python3 /app/web_server.py > /var/log/web_server.log 2>&1 &
 
 # Add cron job to keep server running
-(crontab -l 2>/dev/null; echo "@reboot cd /app && nohup python3 /app/web_server.py 80 > /var/log/web_server.log 2>&1 &") | crontab -
+(crontab -l 2>/dev/null; echo "@reboot cd /app && nohup env PROJECT_ID=\"$PROJECT_ID\" ZONE=\"$ZONE\" INTERNAL_IP=\"$INTERNAL_IP\" python3 /app/web_server.py > /var/log/web_server.log 2>&1 &") | crontab -
 
-echo "Web server started successfully!"
+echo "Web server started successfully with project info: $PROJECT_ID"
 EOT
 }
+
 
 # -------------------------------
 # Managed Instance Group
