@@ -80,21 +80,21 @@ resource "google_compute_instance_template" "instance_template" {
     access_config {}
   }
 
-  metadata_startup_script = <<-EOT
-    #!/bin/bash
-    apt-get update -y
-    apt-get install -y nginx curl
+  metadata_startup_script = <<- "EOT"
+  #!/bin/bash
+  apt-get update -y
+  apt-get install -y nginx curl
 
-    # Fetch dynamic metadata
-    HOSTNAME=$(curl -s -H "Metadata-Flavor: Google" \
-      http://metadata.google.internal/computeMetadata/v1/instance/hostname)
-    PROJECT_ID=$(curl -s -H "Metadata-Flavor: Google" \
-      http://metadata.google.internal/computeMetadata/v1/project/project-id)
-    ZONE=$(curl -s -H "Metadata-Flavor: Google" \
-      http://metadata.google.internal/computeMetadata/v1/instance/zone | awk -F/ '{print $NF}')
+  # Fetch dynamic metadata
+  HOSTNAME=$(curl -s -H "Metadata-Flavor: Google" \
+    http://metadata.google.internal/computeMetadata/v1/instance/hostname)
+  PROJECT_ID=$(curl -s -H "Metadata-Flavor: Google" \
+    http://metadata.google.internal/computeMetadata/v1/project/project-id)
+  ZONE=$(curl -s -H "Metadata-Flavor: Google" \
+    http://metadata.google.internal/computeMetadata/v1/instance/zone | awk -F/ '{print $NF}')
 
-    # Create styled HTML page
-    cat > /var/www/html/index.html << EOF
+  # Create styled HTML page
+  cat > /var/www/html/index.html << EOF
 <!DOCTYPE html>
 <html>
 <head>
@@ -131,18 +131,18 @@ resource "google_compute_instance_template" "instance_template" {
 <body>
   <div class="container">
     <h1>🚀 GCP Project Live Demo</h1>
-    <p><span class="highlight">Project ID:</span> ${PROJECT_ID}</p>
-    <p><span class="highlight">Zone:</span> ${ZONE}</p>
-    <p><span class="highlight">VM Hostname:</span> ${HOSTNAME}</p>
+    <p><span class="highlight">Project ID:</span> $PROJECT_ID</p>
+    <p><span class="highlight">Zone:</span> $ZONE</p>
+    <p><span class="highlight">VM Hostname:</span> $HOSTNAME</p>
     <p>This page is being served through a <strong>Load Balancer</strong>. Refresh to see rotation across multiple VMs 🎯</p>
   </div>
 </body>
 </html>
 EOF
 
-    systemctl restart nginx
-    systemctl enable nginx
-  EOT
+  systemctl restart nginx
+  systemctl enable nginx
+EOT
 }
 
 # -------------------------------
