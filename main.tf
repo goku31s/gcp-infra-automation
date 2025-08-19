@@ -202,7 +202,7 @@ resource "google_compute_http_health_check" "hc" {
   name               = local.names.hc
   request_path       = "/"
   check_interval_sec = 10
-  timeout_sec        = 60
+  timeout_sec        = 5
 }
 
 resource "google_compute_backend_service" "backend" {
