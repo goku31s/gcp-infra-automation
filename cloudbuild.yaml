@@ -34,7 +34,7 @@ options:
 # Store Terraform plan file as an artifact (optional but useful for debugging)
 artifacts:
   objects:
-    location: gs://$PROJECT_ID-tfstate/artifacts/
+    location: gs://powerful-bounty-469218-q0-tfstate/artifacts/
     paths: ["tfplan"]
 
 substitutions:
