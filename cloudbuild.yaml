@@ -1,34 +1,27 @@
 steps:
-  # Step 1: Setup Terraform
+  # Step 1: Install Terraform
   - name: hashicorp/terraform:1.5.7
-    id: init
+    id: Terraform Init
     entrypoint: sh
     args:
       - -c
       - |
-        terraform init
+        terraform init \
+          -backend-config="powerful-bounty-469218-q0-tfstate" \
+          -backend-config="prefix=terraform/state"
 
-  # Step 2: Validate Terraform
+  # Step 2: Terraform plan
   - name: hashicorp/terraform:1.5.7
-    id: validate
-    entrypoint: sh
-    args:
-      - -c
-      - |
-        terraform validate
-
-  # Step 3: Plan
-  - name: hashicorp/terraform:1.5.7
-    id: plan
+    id: Terraform Plan
     entrypoint: sh
     args:
       - -c
       - |
         terraform plan -out=tfplan
 
-  # Step 4: Apply
+  # Step 3: Terraform apply (auto-approve for CI/CD)
   - name: hashicorp/terraform:1.5.7
-    id: apply
+    id: Terraform Apply
     entrypoint: sh
     args:
       - -c
@@ -38,8 +31,13 @@ steps:
 options:
   logging: CLOUD_LOGGING_ONLY
 
-# Store artifacts/logs
+# Store Terraform plan file as an artifact (optional but useful for debugging)
 artifacts:
   objects:
-    location: gs://$PROJECT_ID-cloudbuild-artifacts/
-    paths: ["*"]
+    location: gs://$PROJECT_ID-tfstate/artifacts/
+    paths: ["tfplan"]
+
+substitutions:
+  _REGION: "us-central1"
+
+timeout: 1200s
