@@ -86,136 +86,163 @@ resource "google_compute_instance_template" "instance_template" {
     access_config {} 
   }
 
-metadata_startup_script = <<-SCRIPT
-  #!/bin/bash
-  apt-get update -y
-  apt-get install -y python3
+metadata_startup_script = <<'SCRIPT'
+#!/bin/bash
+set -euxo pipefail
 
-  cat > /var/www/project.html <<'EOF'
-  <!DOCTYPE html>
-  <html lang="en">
-  <head>
-    <meta charset="UTF-8">
-    <title>GCP Infra Automation Project</title>
-    <style>
-      body {
-        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-        background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
-        color: #fff;
-        margin: 0;
-        padding: 40px;
-        text-align: center;
-      }
-      h1 {
-        font-size: 3em;
-        color: #ffdd57;
-      }
-      h2 {
-        margin-top: 40px;
-        color: #4ee1ec;
-      }
-      p, li {
-        font-size: 1.1em;
-        line-height: 1.6;
-        max-width: 900px;
-        margin: 10px auto;
-        text-align: justify;
-      }
-      ul {
-        list-style-type: "✔ ";
-        padding-left: 0;
-      }
-      .card {
-        background: rgba(0,0,0,0.6);
-        padding: 20px;
-        margin: 25px auto;
-        border-radius: 12px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.4);
-        max-width: 1000px;
-      }
-      footer {
-        margin-top: 40px;
-        font-size: 0.85em;
-        opacity: 0.7;
-      }
-    </style>
-  </head>
-  <body>
-    <h1>🚀 GCP Infrastructure Automation Project</h1>
+# Install deps
+apt-get update -y
+apt-get install -y python3 curl
 
-    <div class="card">
-      <h2>Broad Area of Work</h2>
-      <p>
-        This project is part of the academic areas of <strong>Cloud Computing</strong>, 
-        <strong>Infrastructure Automation</strong>, and <strong>DevOps</strong>, with a strong 
-        focus on the <strong>Google Cloud Platform (GCP)</strong>.
-      </p>
-      <ul>
-        <li>Infrastructure as Code (IaC) using Terraform</li>
-        <li>Cloud-native resource provisioning on GCP</li>
-        <li>CI/CD Automation using Google Cloud Build</li>
-        <li>Compute Engine, VPC networking, Load Balancing, and Autoscaling</li>
-        <li>Hosting a basic Python web application served from Managed Instance Groups</li>
-      </ul>
+# Write the web app
+cat > /usr/local/bin/webserver.py <<'PY'
+import http.server, socketserver, os
+from urllib.request import Request, urlopen
+
+PORT = 80
+
+def gcp_meta(path):
+    req = Request(f"http://metadata.google.internal/computeMetadata/v1/{path}",
+                  headers={"Metadata-Flavor":"Google"})
+    with urlopen(req, timeout=2) as r:
+        return r.read().decode()
+
+def instance_name():
+    try:
+        return gcp_meta("instance/name")              # e.g., "mig-xyz-abc"
+    except Exception:
+        return os.uname().nodename
+
+class Handler(http.server.BaseHTTPRequestHandler):
+    def do_GET(self):
+        # Health endpoint for LB (also keep "/" healthy)
+        if self.path == "/healthz":
+            self.send_response(200)
+            self.send_header("Content-Type","text/plain")
+            self.end_headers()
+            self.wfile.write(b"ok")
+            return
+
+        name = instance_name()
+        html = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<title>GCP Infra Automation Project</title>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<style>
+  body {{ font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;
+         background: linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+         color:#fff; margin:0; padding:32px; }}
+  .wrap {{ max-width: 1000px; margin:0 auto; }}
+  .hero {{ text-align:center; margin:10px 0 24px; }}
+  .badge {{ display:inline-block; background:#18c6e5; color:#001018;
+           padding:6px 12px; border-radius:999px; font-weight:700; }}
+  h1 {{ font-size: 2.4rem; margin: 12px 0 8px; }}
+  .served {{ font-size:1.1rem; opacity:.9; }}
+  .vm {{ display:inline-block; margin-top:8px; background:#111827; padding:6px 10px;
+         border-radius:8px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }}
+  .grid {{ display:grid; gap:16px; grid-template-columns:1fr; }}
+  @media (min-width:900px) {{ .grid {{ grid-template-columns:1fr 1fr; }} }}
+  .card {{ background: rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.1);
+           border-radius:14px; padding:18px 20px; box-shadow:0 8px 24px rgba(0,0,0,.25); }}
+  h2 {{ color:#ffdd57; margin:4px 0 8px; }}
+  p {{ line-height:1.6; }}
+  ul {{ padding-left: 18px; }}
+  li {{ margin:6px 0; }}
+  footer {{ text-align:center; opacity:.75; margin-top:24px; font-size:.9rem; }}
+</style>
+</head>
+<body>
+  <div class="wrap">
+    <div class="hero">
+      <span class="badge">Academic Project · Terraform × Cloud Build × GCP</span>
+      <h1>Scalable Python Web App on GCP</h1>
+      <div class="served">Served by VM:</div>
+      <div class="vm">{name}</div>
+      <div style="margin-top:8px; opacity:.9;">Refresh to see load-balancer rotation across instances.</div>
     </div>
 
-    <div class="card">
-      <h2>Background</h2>
-      <p>
-        This is a self-initiated academic project motivated by the goal of gaining hands-on 
-        experience in deploying scalable infrastructure using GCP and automating the process 
-        with modern DevOps tools.
-      </p>
-      <p>
-        Traditionally, deploying a web application required manual steps and physical servers. 
-        GCP’s managed services, combined with Terraform and Cloud Build, allow quick, scalable, 
-        and programmable deployment. The Python web server demonstrates load balancing and 
-        auto-scaling behavior clearly.
-      </p>
+    <div class="grid">
+      <div class="card">
+        <h2>Broad Area of Work</h2>
+        <p>This project is part of the academic areas of <b>Cloud Computing</b>, <b>Infrastructure Automation</b>, and <b>DevOps</b>, with a focus on <b>Google Cloud Platform (GCP)</b>.</p>
+        <ul>
+          <li>Infrastructure as Code (IaC) using Terraform</li>
+          <li>Cloud-native resource provisioning on GCP</li>
+          <li>CI/CD Automation using Google Cloud Build</li>
+          <li>Compute Engine, VPC networking, Load Balancing, and Autoscaling</li>
+          <li>Hosting a basic Python web application served from Managed Instance Groups</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>Background</h2>
+        <p>This is a self-initiated academic project to gain hands-on experience in deploying scalable infrastructure on a major cloud platform (GCP) and automating with modern DevOps tools.</p>
+        <p>Traditionally, deployment required manual steps and physical servers. With GCP + Terraform + Cloud Build, deployment is quick, scalable, and programmable. The Python web server is deliberately simple and prints the VM hostname, clearly demonstrating load balancing and autoscaling.</p>
+      </div>
+
+      <div class="card">
+        <h2>Objectives</h2>
+        <ul>
+          <li>Provision VPC, subnet, firewall rules (port 80)</li>
+          <li>Create instance template for a Python web server</li>
+          <li>Configure a Managed Instance Group with autoscaling</li>
+          <li>Deploy an HTTP Load Balancer with health checks</li>
+          <li>Show the VM hostname to visualize rotation</li>
+          <li>Automate applies via Cloud Build (CI/CD)</li>
+          <li>Simulate traffic to observe scaling behavior</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h2>Scope of Work</h2>
+        <p><b>In Scope:</b> Terraform modules for GCP infra · Python HTTP server · VPC/Firewall/MIG/LB · Cloud Build pipeline · Load simulation & monitoring.</p>
+        <p><b>Out of Scope:</b> Complex apps or DBs · External web servers (Nginx/Apache) · Security hardening beyond defaults.</p>
+      </div>
     </div>
 
-    <div class="card">
-      <h2>Objectives</h2>
-      <ul>
-        <li>Provision VPC, subnet, firewall rules (port 80), and compute infrastructure</li>
-        <li>Create instance template for Python web server</li>
-        <li>Configure Managed Instance Group with autoscaling</li>
-        <li>Deploy HTTP Load Balancer with health checks</li>
-        <li>Host a Python web page displaying VM hostname</li>
-        <li>Automate infra changes via Cloud Build CI/CD</li>
-        <li>Simulate traffic to test autoscaling and balancing</li>
-      </ul>
-    </div>
+    <footer>&copy; 2025 Sukrit Singh · GCP Infrastructure Automation</footer>
+  </div>
+</body>
+</html>"""
 
-    <div class="card">
-      <h2>Scope of Work</h2>
-      <p><strong>In Scope:</strong></p>
-      <ul>
-        <li>Terraform modules for GCP infra</li>
-        <li>Python HTTP server serving VM hostname</li>
-        <li>VPC, firewall, MIG, Load Balancer creation</li>
-        <li>CI/CD pipeline with Cloud Build</li>
-        <li>Load testing and monitoring autoscaling</li>
-      </ul>
-      <p><strong>Out of Scope:</strong></p>
-      <ul>
-        <li>Complex web applications / database integration</li>
-        <li>External web servers like Nginx/Apache</li>
-        <li>Advanced security hardening</li>
-      </ul>
-    </div>
+        self.send_response(200)
+        self.send_header("Content-Type","text/html; charset=utf-8")
+        self.send_header("Cache-Control","no-store")
+        self.end_headers()
+        self.wfile.write(html.encode())
 
-    <footer>
-      &copy; 2025 Sukrit Singh | Academic Project – GCP Infrastructure Automation
-    </footer>
-  </body>
-  </html>
-  EOF
+    # Quiet logs
+    def log_message(self, fmt, *args):
+        return
 
-  # Start Python HTTP server on port 80
-  cd /var/www
-  nohup python3 -m http.server 80 --directory /var/www > server.log 2>&1 &
+with socketserver.TCPServer(("", PORT), Handler) as httpd:
+    httpd.serve_forever()
+PY
+chmod +x /usr/local/bin/webserver.py
+
+# Run as a systemd service (restarts if it ever crashes)
+cat > /etc/systemd/system/python-web.service <<'UNIT'
+[Unit]
+Description=Simple Python Web Server for MIG Demo
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/local/bin/webserver.py
+Restart=always
+RestartSec=2
+User=root
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable --now python-web.service
 SCRIPT
+
 }
 
 # -------------------------------------
