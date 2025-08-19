@@ -83,7 +83,7 @@ resource "google_compute_instance_template" "instance_template" {
   metadata_startup_script = <<-EOT
 #!/bin/bash
 apt-get update -y
-apt-get install -y nginx curl
+apt-get install -y python3 python3-pip
 
 # Fetch dynamic metadata
 HOSTNAME=$(curl -s -H "Metadata-Flavor: Google" \
@@ -92,56 +92,322 @@ PROJECT_ID=$(curl -s -H "Metadata-Flavor: Google" \
   http://metadata.google.internal/computeMetadata/v1/project/project-id)
 ZONE=$(curl -s -H "Metadata-Flavor: Google" \
   http://metadata.google.internal/computeMetadata/v1/instance/zone | awk -F/ '{print $NF}')
+INTERNAL_IP=$(curl -s -H "Metadata-Flavor: Google" \
+  http://metadata.google.internal/computeMetadata/v1/instance/network-interfaces/0/ip)
 
-# Create styled HTML page
-cat > /var/www/html/index.html << 'EOF'
+# Create Python web server script
+cat > /app/web_server.py << 'PYTHON_SCRIPT'
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import socket
+import datetime
+
+class WebServerHandler(BaseHTTPRequestHandler):
+    def do_GET(self):
+        if self.path == '/':
+            self.send_response(200)
+            self.send_header('Content-type', 'text/html')
+            self.end_headers()
+            
+            hostname = socket.gethostname()
+            current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            
+            html_content = f"""
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-  <title>GCP Live Demo</title>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      text-align: center;
-      background: linear-gradient(to right, #1e3c72, #2a5298);
-      color: white;
-      padding: 50px;
-    }
-    .container {
-      background: rgba(255, 255, 255, 0.1);
-      padding: 30px;
-      border-radius: 15px;
-      display: inline-block;
-      box-shadow: 0 4px 15px rgba(0,0,0,0.3);
-    }
-    h1 {
-      color: #FFD700;
-      margin-bottom: 20px;
-    }
-    p {
-      font-size: 18px;
-      margin: 10px 0;
-    }
-    .highlight {
-      font-weight: bold;
-      color: #00FFCC;
-    }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GCP Academic Project Demo</title>
+    <style>
+        * {{
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }}
+        
+        body {{
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            line-height: 1.6;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: #333;
+            min-height: 100vh;
+            padding: 20px;
+        }}
+        
+        .container {{
+            max-width: 1200px;
+            margin: 0 auto;
+            background: rgba(255, 255, 255, 0.95);
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+        }}
+        
+        header {{
+            text-align: center;
+            margin-bottom: 30px;
+            padding-bottom: 20px;
+            border-bottom: 3px solid #667eea;
+        }}
+        
+        h1 {{
+            color: #2c3e50;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }}
+        
+        .subtitle {{
+            color: #7f8c8d;
+            font-size: 1.2em;
+        }}
+        
+        .section {{
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-left: 5px solid #667eea;
+        }}
+        
+        .section h2 {{
+            color: #2c3e50;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }}
+        
+        .section h2::before {{
+            content: "📌";
+            margin-right: 10px;
+            font-size: 1.2em;
+        }}
+        
+        .info-grid {{
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }}
+        
+        .info-card {{
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            border: 1px solid #e9ecef;
+        }}
+        
+        .info-card h3 {{
+            color: #2c3e50;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+        }}
+        
+        .info-card h3::before {{
+            content: "🔹";
+            margin-right: 8px;
+        }}
+        
+        .highlight {{
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }}
+        
+        .tech-stack {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-top: 10px;
+        }}
+        
+        .tech-tag {{
+            background: linear-gradient(45deg, #667eea, #764ba2);
+            color: white;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.9em;
+            font-weight: 500;
+        }}
+        
+        .objective-list {{
+            list-style: none;
+            padding: 0;
+        }}
+        
+        .objective-list li {{
+            padding: 10px 0;
+            border-bottom: 1px solid #e9ecef;
+            display: flex;
+            align-items: center;
+        }}
+        
+        .objective-list li::before {{
+            content: "✅";
+            margin-right: 10px;
+            color: #27ae60;
+        }}
+        
+        .scope-grid {{
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }}
+        
+        .in-scope, .out-scope {{
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }}
+        
+        .in-scope h3 {{ color: #27ae60; }}
+        .out-scope h3 {{ color: #e74c3c; }}
+        
+        footer {{
+            text-align: center;
+            margin-top: 40px;
+            padding-top: 20px;
+            border-top: 2px solid #e9ecef;
+            color: #7f8c8d;
+        }}
+        
+        @media (max-width: 768px) {{
+            .scope-grid {{
+                grid-template-columns: 1fr;
+            }}
+            
+            .container {{
+                padding: 15px;
+            }}
+        }}
+    </style>
 </head>
 <body>
-  <div class="container">
-    <h1>🚀 GCP Project Live Demo</h1>
-    <p><span class="highlight">Project ID:</span> $PROJECT_ID</p>
-    <p><span class="highlight">Zone:</span> $ZONE</p>
-    <p><span class="highlight">VM Hostname:</span> $HOSTNAME</p>
-    <p>This page is being served through a <strong>Load Balancer</strong>. Refresh to see rotation across multiple VMs 🎯</p>
-  </div>
+    <div class="container">
+        <header>
+            <h1>🚀 GCP Academic Project Live Demo</h1>
+            <p class="subtitle">Cloud Computing & DevOps Infrastructure Automation</p>
+        </header>
+
+        <div class="info-grid">
+            <div class="info-card">
+                <h3>Instance Information</h3>
+                <p><strong>Hostname:</strong> {hostname}</p>
+                <p><strong>Project ID:</strong> __PROJECT_ID__</p>
+                <p><strong>Zone:</strong> __ZONE__</p>
+                <p><strong>Internal IP:</strong> __INTERNAL_IP__</p>
+                <p><strong>Server Time:</strong> {current_time}</p>
+            </div>
+            
+            <div class="info-card">
+                <h3>Load Balancer Info</h3>
+                <p>This instance is part of a Managed Instance Group</p>
+                <p>Traffic is distributed via GCP HTTP Load Balancer</p>
+                <p>Refresh to see different instances serving requests</p>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>📚 Broad Area of Work</h2>
+            <p>This project is part of the academic areas of <strong>Cloud Computing, Infrastructure Automation, and DevOps</strong>, with a strong focus on the Google Cloud Platform (GCP).</p>
+            
+            <div class="highlight">
+                <h3>Key Technologies & Concepts:</h3>
+                <div class="tech-stack">
+                    <span class="tech-tag">Infrastructure as Code (IaC) using Terraform</span>
+                    <span class="tech-tag">Cloud-native resource provisioning on GCP</span>
+                    <span class="tech-tag">CI/CD Automation using Google Cloud Build</span>
+                    <span class="tech-tag">Compute Engine, VPC networking</span>
+                    <span class="tech-tag">Load Balancing and Autoscaling</span>
+                    <span class="tech-tag">Managed Instance Groups</span>
+                </div>
+            </div>
+            
+            <p>Using GCP provides high scalability, reliability, and simplified DevOps workflows compared to traditional hosting methods.</p>
+        </div>
+
+        <div class="section">
+            <h2>🎯 Project Objectives</h2>
+            <ul class="objective-list">
+                <li>Provision GCP infrastructure using Terraform (VPC, subnet, firewall rules)</li>
+                <li>Create instance template for Python web server</li>
+                <li>Set up Managed Instance Group (MIG) with autoscaling</li>
+                <li>Configure HTTP Load Balancer with health checks</li>
+                <li>Use Python's built-in HTTP server to host lightweight web pages</li>
+                <li>Set up Cloud Build CI/CD for automatic infrastructure deployment</li>
+                <li>Simulate high traffic to trigger autoscaling behavior</li>
+                <li>Ensure even traffic distribution across healthy instances</li>
+            </ul>
+        </div>
+
+        <div class="section">
+            <h2>📋 Scope of Work</h2>
+            <div class="scope-grid">
+                <div class="in-scope">
+                    <h3>✅ In Scope</h3>
+                    <ul>
+                        <li>Writing and testing Terraform modules for GCP</li>
+                        <li>Hosting Python HTTP server</li>
+                        <li>GCP resource creation (VPC, firewall, MIG, LB)</li>
+                        <li>CI/CD pipeline using Cloud Build</li>
+                        <li>Load simulation and monitoring</li>
+                    </ul>
+                </div>
+                
+                <div class="out-scope">
+                    <h3>❌ Out of Scope</h3>
+                    <ul>
+                        <li>Complex web applications</li>
+                        <li>Database integration</li>
+                        <li>External web servers (Nginx/Apache)</li>
+                        <li>Advanced security hardening</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+
+        <div class="section">
+            <h2>🔍 Background</h2>
+            <p>This is a <strong>self-initiated academic project</strong> with no direct relation to job responsibilities. The motivation is to gain hands-on experience in deploying scalable infrastructure using GCP and automating the process with modern DevOps tools.</p>
+            <p>Traditionally, deploying web applications required manual steps and physical servers. In contrast, GCP's managed services offer quick, scalable, and programmable deployment using tools like Terraform.</p>
+        </div>
+
+        <footer>
+            <p>🔄 Refresh this page to see load balancing in action across multiple instances</p>
+            <p>⚡ Powered by Google Cloud Platform & Terraform</p>
+        </footer>
+    </div>
 </body>
 </html>
-EOF
+PYTHON_SCRIPT
 
-systemctl restart nginx
-systemctl enable nginx
+# Replace placeholders with actual values
+sed -i "s/__PROJECT_ID__/${PROJECT_ID}/g" /app/web_server.py
+sed -i "s/__ZONE__/${ZONE}/g" /app/web_server.py
+sed -i "s/__INTERNAL_IP__/${INTERNAL_IP}/g" /app/web_server.py
+
+# Create directory and start Python server
+mkdir -p /app
+cd /app
+
+# Start Python web server on port 80
+nohup python3 /app/web_server.py 80 > /var/log/web_server.log 2>&1 &
+
+# Create simple health check endpoint
+echo "Healthy" > /app/health
+nohup python3 -m http.server 8080 --directory /app > /var/log/health_server.log 2>&1 &
+
+# Add cron job to keep server running
+(crontab -l 2>/dev/null; echo "@reboot cd /app && nohup python3 /app/web_server.py 80 > /var/log/web_server.log 2>&1 &") | crontab -
+
+echo "Web server started successfully!"
 EOT
 }
 
