@@ -7,7 +7,6 @@ locals {
     router         = "${var.name_prefix}-router"
     nat            = "${var.name_prefix}-nat"
     fw_http_https  = "${var.name_prefix}-allow-http-https"
-    fw_iap_ssh     = "${var.name_prefix}-allow-iap-ssh"
     fw_hc          = "${var.name_prefix}-allow-hc"
     instance_template = "${var.name_prefix}-instance-template"
     mig            = "${var.name_prefix}-mig"
