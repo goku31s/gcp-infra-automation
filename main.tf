@@ -738,7 +738,7 @@ resource "google_compute_instance_group_manager" "mig" {
     type                           = "PROACTIVE"
     minimal_action                 = "RESTART"
     max_surge_fixed                = 1
-    max_unavailable_fixed          = 0
+    max_unavailable_fixed          = 1
     most_disruptive_allowed_action = "REPLACE"
   }
 
