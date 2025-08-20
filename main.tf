@@ -76,7 +76,7 @@ resource "google_compute_instance_template" "instance_template" {
   disk {
     auto_delete  = true
     boot         = true
-    source_image = "ubuntu-os-cloud/ubuntu-2204-lts"
+    source_image = "ubuntu-minimal-2404-noble-amd64-v20250818"
   }
 
   network_interface {
