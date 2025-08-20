@@ -87,11 +87,6 @@ resource "google_compute_instance_template" "instance_template" {
     }
   }
 
-
-  metadata = {
-    http-server        = "true"  
-  }
-
   metadata_startup_script = <<-EOT
 #!/bin/bash
 # =======================================================
