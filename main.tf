@@ -93,7 +93,7 @@ resource "google_compute_instance_template" "instance_template" {
 #!/bin/bash
 # =======================================================
 # GCP Academic Project - Python Web Server Deployment
-# Enhanced with Beautiful Modern UI
+# Enhanced with Self-Hosted Assets for Load Balancer
 # =======================================================
 
 set -e  # Exit immediately if a command exits with a non-zero status
@@ -103,7 +103,7 @@ set -e  # Exit immediately if a command exits with a non-zero status
 # -------------------------------
 echo "[INFO] Updating system & installing Python..."
 sudo apt-get update -y
-sudo apt-get install -y python3 python3-pip curl
+sudo apt-get install -y python3 python3-pip curl wget
 
 # -------------------------------
 # Fetch Instance Metadata
@@ -122,8 +122,26 @@ INTERNAL_IP=$(curl -s -H "Metadata-Flavor: Google" \
 # Setup Application Directory
 # -------------------------------
 echo "[INFO] Setting up application directory..."
-sudo mkdir -p /app
-sudo chown $USER:$USER /app
+sudo mkdir -p /app/static/fonts
+sudo mkdir -p /app/static/css
+sudo chown -R $USER:$USER /app
+
+# -------------------------------
+# Download Google Fonts Locally
+# -------------------------------
+echo "[INFO] Downloading Google Fonts locally..."
+cd /app/static/fonts
+wget -q "https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" -O inter.css
+
+# Extract font URLs and download font files
+grep -oP 'https://[^)]+\.woff2' inter.css | while read font_url; do
+    font_name=$(basename "$font_url")
+    echo "[INFO] Downloading font: $font_name"
+    wget -q "$font_url" -O "$font_name"
+done
+
+# Update CSS file to use local paths
+sed -i 's|https://fonts.gstatic.com/s/[^)]*|/fonts|g' inter.css
 
 # -------------------------------
 # Create Python Web Server
@@ -131,39 +149,95 @@ sudo chown $USER:$USER /app
 echo "[INFO] Creating Python web server script..."
 sudo tee /app/web_server.py > /dev/null << 'EOF'
 from http.server import BaseHTTPRequestHandler, HTTPServer
-import socket, os
+import socket, os, mimetypes, urllib.parse
 
 class WebServerHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/':
+            self.serve_main_page()
+        elif self.path == '/health':
             self.send_response(200)
-            self.send_header('Content-type', 'text/html')
             self.end_headers()
+            self.wfile.write(b'Healthy')
+        elif self.path.startswith('/fonts/'):
+            self.serve_static_file()
+        elif self.path.startswith('/static/'):
+            self.serve_static_file()
+        else:
+            self.send_response(404)
+            self.end_headers()
+            self.wfile.write(b'Not Found')
+    
+    def serve_static_file(self):
+        try:
+            # Remove leading slash and decode URL
+            file_path = urllib.parse.unquote(self.path[1:])
+            full_path = os.path.join('/app', file_path)
+            
+            if os.path.exists(full_path) and os.path.isfile(full_path):
+                # Determine content type
+                content_type, _ = mimetypes.guess_type(full_path)
+                if content_type is None:
+                    content_type = 'application/octet-stream'
+                
+                # Special handling for fonts
+                if file_path.endswith('.woff2'):
+                    content_type = 'font/woff2'
+                elif file_path.endswith('.woff'):
+                    content_type = 'font/woff'
+                elif file_path.endswith('.ttf'):
+                    content_type = 'font/ttf'
+                
+                self.send_response(200)
+                self.send_header('Content-type', content_type)
+                self.send_header('Cache-Control', 'max-age=86400')  # Cache for 1 day
+                self.send_header('Access-Control-Allow-Origin', '*')
+                self.end_headers()
+                
+                with open(full_path, 'rb') as f:
+                    self.wfile.write(f.read())
+            else:
+                self.send_response(404)
+                self.end_headers()
+                self.wfile.write(b'File not found')
+        except Exception as e:
+            self.send_response(500)
+            self.end_headers()
+            self.wfile.write(f'Server error: {str(e)}'.encode())
+    
+    def serve_main_page(self):
+        self.send_response(200)
+        self.send_header('Content-type', 'text/html')
+        # Add security headers that work well with load balancers
+        self.send_header('X-Frame-Options', 'SAMEORIGIN')
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.send_header('Cache-Control', 'no-cache, no-store, must-revalidate')
+        self.end_headers()
 
-            hostname = socket.gethostname()
-            project_id = os.environ.get('PROJECT_ID', 'Not available')
-            zone = os.environ.get('ZONE', 'Not available')
-            internal_ip = os.environ.get('INTERNAL_IP', 'Not available')
+        hostname = socket.gethostname()
+        project_id = os.environ.get('PROJECT_ID', 'Not available')
+        zone = os.environ.get('ZONE', 'Not available')
+        internal_ip = os.environ.get('INTERNAL_IP', 'Not available')
 
-            html_content = f"""
+        html_content = f"""
 <!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GCP Academic Project - Cloud Infrastructure Demo</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <style>
-* {{{{
+/* Import local fonts instead of Google Fonts */
+@import url('/fonts/inter.css');
+
+* {{
   margin: 0;
   padding: 0;
   box-sizing: border-box;
-}}}}
+}}
 
-body {{{{
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+body {{
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', sans-serif;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
   min-height: 100vh;
   display: flex;
@@ -172,20 +246,21 @@ body {{{{
   padding: 20px;
   position: relative;
   overflow-x: hidden;
-}}}}
+}}
 
-body::before {{{{
+body::before {{
   content: '';
   position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%23ffffff' fill-opacity='0.03'%3E%3Ccircle cx='30' cy='30' r='2'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E") repeat;
+  background: radial-gradient(circle at 50% 50%, rgba(255,255,255,0.03) 1px, transparent 1px);
+  background-size: 60px 60px;
   pointer-events: none;
-}}}}
+}}
 
-.container {{{{
+.container {{
   max-width: 1000px;
   width: 100%;
   background: rgba(255, 255, 255, 0.95);
@@ -196,9 +271,9 @@ body::before {{{{
   position: relative;
   overflow: hidden;
   animation: slideUp 0.8s ease-out;
-}}}}
+}}
 
-.container::before {{{{
+.container::before {{
   content: '';
   position: absolute;
   top: 0;
@@ -208,51 +283,51 @@ body::before {{{{
   background: linear-gradient(90deg, #ff6b6b, #4ecdc4, #45b7d1, #96ceb4, #ffeaa7);
   background-size: 300% 100%;
   animation: gradientShift 3s ease infinite;
-}}}}
+}}
 
-@keyframes slideUp {{{{
-  from {{{{
+@keyframes slideUp {{
+  from {{
     opacity: 0;
     transform: translateY(30px);
-  }}}}
-  to {{{{
+  }}
+  to {{
     opacity: 1;
     transform: translateY(0);
-  }}}}
-}}}}
+  }}
+}}
 
-@keyframes gradientShift {{{{
-  0%, 100% {{{{ background-position: 0% 50%; }}}}
-  50% {{{{ background-position: 100% 50%; }}}}
-}}}}
+@keyframes gradientShift {{
+  0%, 100% {{ background-position: 0% 50%; }}
+  50% {{ background-position: 100% 50%; }}
+}}
 
-.content {{{{
+.content {{
   padding: 60px 50px;
-}}}}
+}}
 
-.header {{{{
+.header {{
   text-align: center;
   margin-bottom: 50px;
-}}}}
+}}
 
-.student-info {{{{
+.student-info {{
   margin: 30px 0;
   display: flex;
   flex-direction: column;
   gap: 20px;
   align-items: center;
-}}}}
+}}
 
-.student-card {{{{
+.student-card {{
   background: rgba(255, 255, 255, 0.9);
   border-radius: 16px;
   padding: 24px 32px;
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.3);
   backdrop-filter: blur(10px);
-}}}}
+}}
 
-.student-name {{{{
+.student-name {{
   font-size: 1.5rem;
   font-weight: 600;
   color: #2d3748;
@@ -261,28 +336,28 @@ body::before {{{{
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-}}}}
+}}
 
-.student-id {{{{
+.student-id {{
   font-size: 1rem;
   color: #4a5568;
   font-weight: 500;
   font-family: 'Courier New', monospace;
-}}}}
+}}
 
-.project-title {{{{
+.project-title {{
   text-align: center;
   max-width: 600px;
-}}}}
+}}
 
-.project-title h4 {{{{
+.project-title h4 {{
   font-size: 1.1rem;
   color: #4a5568;
   margin-bottom: 12px;
   font-weight: 500;
-}}}}
+}}
 
-.project-name {{{{
+.project-name {{
   font-size: 1.25rem;
   font-weight: 600;
   color: #2d3748;
@@ -291,9 +366,9 @@ body::before {{{{
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-}}}}
+}}
 
-.title {{{{
+.title {{
   font-size: 3rem;
   font-weight: 700;
   color: #2d3748;
@@ -302,23 +377,23 @@ body::before {{{{
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-}}}}
+}}
 
-.subtitle {{{{
+.subtitle {{
   font-size: 1.25rem;
   color: #718096;
   font-weight: 400;
   margin-bottom: 30px;
-}}}}
+}}
 
-.badges {{{{
+.badges {{
   display: flex;
   gap: 12px;
   justify-content: center;
   flex-wrap: wrap;
-}}}}
+}}
 
-.badge {{{{
+.badge {{
   padding: 8px 20px;
   background: linear-gradient(135deg, #667eea, #764ba2);
   color: white;
@@ -326,16 +401,16 @@ body::before {{{{
   font-size: 0.875rem;
   font-weight: 500;
   box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
-}}}}
+}}
 
-.cards-grid {{{{
+.cards-grid {{
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
   gap: 30px;
   margin: 50px 0;
-}}}}
+}}
 
-.card {{{{
+.card {{
   background: rgba(255, 255, 255, 0.8);
   border-radius: 16px;
   padding: 30px;
@@ -344,9 +419,9 @@ body::before {{{{
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
-}}}}
+}}
 
-.card::before {{{{
+.card::before {{
   content: '';
   position: absolute;
   top: 0;
@@ -356,18 +431,18 @@ body::before {{{{
   background: linear-gradient(90deg, #ff6b6b, #4ecdc4);
   transform: scaleX(0);
   transition: transform 0.3s ease;
-}}}}
+}}
 
-.card:hover {{{{
+.card:hover {{
   transform: translateY(-5px);
   box-shadow: 0 16px 48px rgba(0, 0, 0, 0.15);
-}}}}
+}}
 
-.card:hover::before {{{{
+.card:hover::before {{
   transform: scaleX(1);
-}}}}
+}}
 
-.card-title {{{{
+.card-title {{
   font-size: 1.5rem;
   font-weight: 600;
   color: #2d3748;
@@ -375,9 +450,9 @@ body::before {{{{
   display: flex;
   align-items: center;
   gap: 12px;
-}}}}
+}}
 
-.icon {{{{
+.icon {{
   width: 32px;
   height: 32px;
   border-radius: 8px;
@@ -385,29 +460,29 @@ body::before {{{{
   align-items: center;
   justify-content: center;
   font-size: 1.25rem;
-}}}}
+}}
 
-.icon-info {{{{ background: linear-gradient(135deg, #667eea, #764ba2); }}}}
-.icon-objectives {{{{ background: linear-gradient(135deg, #4ecdc4, #44a08d); }}}}
+.icon-info {{ background: linear-gradient(135deg, #667eea, #764ba2); }}
+.icon-objectives {{ background: linear-gradient(135deg, #4ecdc4, #44a08d); }}
 
-.info-item {{{{
+.info-item {{
   display: flex;
   justify-content: space-between;
   align-items: center;
   padding: 16px 0;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
-}}}}
+}}
 
-.info-item:last-child {{{{
+.info-item:last-child {{
   border-bottom: none;
-}}}}
+}}
 
-.info-label {{{{
+.info-label {{
   font-weight: 500;
   color: #4a5568;
-}}}}
+}}
 
-.info-value {{{{
+.info-value {{
   font-weight: 600;
   color: #2d3748;
   background: linear-gradient(135deg, #ffeaa7, #fdcb6e);
@@ -415,27 +490,27 @@ body::before {{{{
   border-radius: 6px;
   font-family: 'Courier New', monospace;
   font-size: 0.875rem;
-}}}}
+}}
 
-.objectives-list {{{{
+.objectives-list {{
   list-style: none;
   padding: 0;
-}}}}
+}}
 
-.objectives-list li {{{{
+.objectives-list li {{
   padding: 16px 0;
   border-bottom: 1px solid rgba(0, 0, 0, 0.05);
   position: relative;
   padding-left: 40px;
   color: #4a5568;
   line-height: 1.6;
-}}}}
+}}
 
-.objectives-list li:last-child {{{{
+.objectives-list li:last-child {{
   border-bottom: none;
-}}}}
+}}
 
-.objectives-list li::before {{{{
+.objectives-list li::before {{
   content: '✨';
   position: absolute;
   left: 0;
@@ -448,28 +523,28 @@ body::before {{{{
   align-items: center;
   justify-content: center;
   font-size: 12px;
-}}}}
+}}
 
-.tech-section {{{{
+.tech-section {{
   margin: 40px 0;
   text-align: center;
-}}}}
+}}
 
-.tech-title {{{{
+.tech-title {{
   font-size: 1.75rem;
   font-weight: 600;
   color: #2d3748;
   margin-bottom: 30px;
-}}}}
+}}
 
-.tech-tags {{{{
+.tech-tags {{
   display: flex;
   gap: 16px;
   justify-content: center;
   flex-wrap: wrap;
-}}}}
+}}
 
-.tech-tag {{{{
+.tech-tag {{
   padding: 12px 24px;
   background: linear-gradient(135deg, #a8edea, #fed6e3);
   color: #2d3748;
@@ -478,27 +553,27 @@ body::before {{{{
   font-size: 0.875rem;
   box-shadow: 0 4px 12px rgba(168, 237, 234, 0.3);
   transition: all 0.3s ease;
-}}}}
+}}
 
-.tech-tag:hover {{{{
+.tech-tag:hover {{
   transform: translateY(-2px);
   box-shadow: 0 8px 20px rgba(168, 237, 234, 0.4);
-}}}}
+}}
 
-.footer {{{{
+.footer {{
   margin-top: 60px;
   padding-top: 30px;
   border-top: 1px solid rgba(0, 0, 0, 0.1);
   text-align: center;
-}}}}
+}}
 
-.footer-content {{{{
+.footer-content {{
   color: #718096;
   font-size: 0.875rem;
   margin-bottom: 16px;
-}}}}
+}}
 
-.status-indicator {{{{
+.status-indicator {{
   display: inline-flex;
   align-items: center;
   gap: 8px;
@@ -508,32 +583,32 @@ body::before {{{{
   border-radius: 50px;
   font-size: 0.875rem;
   font-weight: 500;
-}}}}
+}}
 
-.status-dot {{{{
+.status-dot {{
   width: 8px;
   height: 8px;
   background: #38a169;
   border-radius: 50%;
   animation: pulse 2s infinite;
-}}}}
+}}
 
-@keyframes pulse {{{{
-  0%, 100% {{{{ opacity: 1; }}}}
-  50% {{{{ opacity: 0.5; }}}}
-}}}}
+@keyframes pulse {{
+  0%, 100% {{ opacity: 1; }}
+  50% {{ opacity: 0.5; }}
+}}
 
-@media (max-width: 768px) {{{{
-  .content {{{{ padding: 40px 30px; }}}}
-  .title {{{{ font-size: 2.5rem; }}}}
-  .cards-grid {{{{ grid-template-columns: 1fr; gap: 20px; }}}}
-  .tech-tags {{{{ gap: 12px; }}}}
-  .badges {{{{ gap: 8px; }}}}
-  .student-info {{{{ gap: 16px; }}}}
-  .student-card {{{{ padding: 20px 24px; }}}}
-  .student-name {{{{ font-size: 1.25rem; }}}}
-  .project-name {{{{ font-size: 1.1rem; }}}}
-}}}}
+@media (max-width: 768px) {{
+  .content {{ padding: 40px 30px; }}
+  .title {{ font-size: 2.5rem; }}
+  .cards-grid {{ grid-template-columns: 1fr; gap: 20px; }}
+  .tech-tags {{ gap: 12px; }}
+  .badges {{ gap: 8px; }}
+  .student-info {{ gap: 16px; }}
+  .student-card {{ padding: 20px 24px; }}
+  .student-name {{ font-size: 1.25rem; }}
+  .project-name {{ font-size: 1.1rem; }}
+}}
 </style>
 </head>
 <body>
@@ -547,7 +622,7 @@ body::before {{{{
         <div class="student-card">
           <div class="student-details">
             <h3 class="student-name">Sukrit Singh</h3>
-            <p class="student-id">BITS ID: 202117BH134</p>
+            <p class="student-id">BITS ID: 2021XXBH134</p>
           </div>
         </div>
         <div class="project-title">
@@ -617,11 +692,11 @@ body::before {{{{
       <div class="footer-content">
         <div class="status-indicator">
           <span class="status-dot"></span>
-          Service Running Successfully
+          Service Running Successfully via Load Balancer
         </div>
       </div>
       <div class="footer-content">
-        © 2025 GCP Academic Project | Sukrit Singh (202117BH134) | Modern Cloud Infrastructure Demo
+        © 2025 GCP Academic Project | Sukrit Singh (2021XXBH134) | Modern Cloud Infrastructure Demo
       </div>
     </div>
   </div>
@@ -629,15 +704,7 @@ body::before {{{{
 </body>
 </html>
 """
-            self.wfile.write(html_content.encode("utf-8"))
-        elif self.path == '/health':
-            self.send_response(200)
-            self.end_headers()
-            self.wfile.write(b'Healthy')
-        else:
-            self.send_response(404)
-            self.end_headers()
-            self.wfile.write(b'Not Found')
+        self.wfile.write(html_content.encode("utf-8"))
 
 def run_server():
     httpd = HTTPServer(("", 80), WebServerHandler)
@@ -646,6 +713,62 @@ def run_server():
 
 if __name__ == '__main__':
     run_server()
+EOF
+
+# -------------------------------
+# Export Environment Variables
+# -------------------------------
+echo "[INFO] Exporting environment variables..."
+export PROJECT_ID="$PROJECT_ID"
+export ZONE="$ZONE"
+export INTERNAL_IP="$INTERNAL_IP"
+
+# -------------------------------
+# Prepare Logging
+# -------------------------------
+sudo touch /var/log/web_server.log
+sudo chown $USER:$USER /var/log/web_server.log
+
+# -------------------------------
+# Systemd Service Setup
+# -------------------------------
+echo "[INFO] Creating systemd service..."
+sudo tee /etc/systemd/system/web_server.service > /dev/null << EOF
+[Unit]
+Description=Python Web Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/app
+Environment="PROJECT_ID=$PROJECT_ID"
+Environment="ZONE=$ZONE"
+Environment="INTERNAL_IP=$INTERNAL_IP"
+ExecStart=/usr/bin/python3 /app/web_server.py
+Restart=always
+RestartSec=5
+StandardOutput=file:/var/log/web_server.log
+StandardError=file:/var/log/web_server.log
+
+[Install]
+WantedBy=multi-user.target
+EOF
+
+# -------------------------------
+# Enable & Start Service
+# -------------------------------
+echo "[INFO] Starting web server service..."
+sudo systemctl daemon-reload
+sudo systemctl enable web_server.service
+sudo systemctl start web_server.service
+
+echo "======================================================="
+echo "  Enhanced Python web server deployed successfully!"
+echo "  Local assets for load balancer compatibility"
+echo "  Accessible on port 80"
+echo "  Auto-starts on reboot"
+echo "  Logs at /var/log/web_server.log"
+echo "======================================================="
 EOF
 
 # -------------------------------
