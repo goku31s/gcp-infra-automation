@@ -24,11 +24,12 @@ resource "google_compute_firewall" "allow_http_https" {
 
   allow {
     protocol = "tcp"
-    ports    = ["80"]
+    ports    = ["80"]  
   }
 
   target_tags   = [local.web_tag]
   source_ranges = ["0.0.0.0/0"]
+  description   = "Allow HTTP and HTTPS traffic from anywhere"
 }
 
 resource "google_compute_firewall" "allow_ssh_anywhere" {
@@ -42,6 +43,7 @@ resource "google_compute_firewall" "allow_ssh_anywhere" {
 
   target_tags   = [local.web_tag]
   source_ranges = ["0.0.0.0/0"]
+  description   = "Allow SSH access from anywhere"
 }
 
 resource "google_compute_firewall" "allow_lb_health_checks" {
@@ -55,9 +57,10 @@ resource "google_compute_firewall" "allow_lb_health_checks" {
 
   target_tags = [local.web_tag]
   source_ranges = [
-    "130.211.0.0/22",
-    "35.191.0.0/16",
+    "130.211.0.0/22",  
+    "35.191.0.0/16",   # Google Cloud Load Balancer health check ranges
   ]
+  description = "Allow health checks from Google Cloud Load Balancers"
 }
 
 # -------------------------------
@@ -66,7 +69,8 @@ resource "google_compute_firewall" "allow_lb_health_checks" {
 resource "google_compute_instance_template" "instance_template" {
   name         = local.names.instance_template
   machine_type = var.instance_type
-  tags         = [local.web_tag]
+  
+  tags = [local.web_tag]
 
   disk {
     auto_delete  = true
@@ -77,7 +81,15 @@ resource "google_compute_instance_template" "instance_template" {
   network_interface {
     network    = google_compute_network.vpc.id
     subnetwork = google_compute_subnetwork.subnet.id
-    access_config {}
+    
+    access_config {
+      # Ephemeral external IP
+    }
+  }
+
+
+  metadata = {
+    http-server        = "true"  
   }
 
   metadata_startup_script = <<-EOT
@@ -708,8 +720,12 @@ if [ ! -f "$SCRIPT_PATH" ]; then
     echo "[INFO] Script saved for future runs!"
 fi
 EOT
-}
 
+  # Ensure the instance template can be recreated
+  lifecycle {
+    create_before_destroy = true
+  }
+}
 
 # -------------------------------
 # Managed Instance Group
@@ -731,7 +747,7 @@ resource "google_compute_instance_group_manager" "mig" {
 
   auto_healing_policies {
     health_check      = google_compute_http_health_check.hc.id
-    initial_delay_sec = 300
+    initial_delay_sec = 120
   }
 
   update_policy {
