@@ -27,7 +27,8 @@ resource "google_compute_firewall" "allow_http_https" {
     ports    = ["80"]  
   }
 
-  target_tags   = [local.web_tag]
+  # Use both custom tag and GCP predefined tags
+  target_tags   = [local.web_tag, "http-server", "https-server"]
   source_ranges = ["0.0.0.0/0"]
   description   = "Allow HTTP and HTTPS traffic from anywhere"
 }
@@ -41,7 +42,7 @@ resource "google_compute_firewall" "allow_ssh_anywhere" {
     ports    = ["22"]
   }
 
-  target_tags   = [local.web_tag]
+  target_tags   = [local.web_tag, "http-server", "https-server"]
   source_ranges = ["0.0.0.0/0"]
   description   = "Allow SSH access from anywhere"
 }
@@ -55,9 +56,9 @@ resource "google_compute_firewall" "allow_lb_health_checks" {
     ports    = ["80"]
   }
 
-  target_tags = [local.web_tag]
+  target_tags = [local.web_tag, "http-server", "https-server"]
   source_ranges = [
-    "130.211.0.0/22",  
+    "130.211.0.0/22",  # Google Cloud Load Balancer health check ranges
     "35.191.0.0/16",   # Google Cloud Load Balancer health check ranges
   ]
   description = "Allow health checks from Google Cloud Load Balancers"
@@ -70,7 +71,7 @@ resource "google_compute_instance_template" "instance_template" {
   name         = local.names.instance_template
   machine_type = var.instance_type
   
-  tags = [local.web_tag]
+  tags = [local.web_tag, "http-server"]
 
   disk {
     auto_delete  = true
@@ -83,9 +84,10 @@ resource "google_compute_instance_template" "instance_template" {
     subnetwork = google_compute_subnetwork.subnet.id
     
     access_config {
-      # Ephemeral external IP
+     
     }
   }
+
 
   metadata_startup_script = <<-EOT
 #!/bin/bash
@@ -742,7 +744,7 @@ resource "google_compute_instance_group_manager" "mig" {
 
   auto_healing_policies {
     health_check      = google_compute_http_health_check.hc.id
-    initial_delay_sec = 120
+    initial_delay_sec = 300
   }
 
   update_policy {
@@ -767,7 +769,7 @@ resource "google_compute_autoscaler" "asg" {
     cooldown_period = 60
 
     cpu_utilization {
-      target = 0.05
+      target = 0.5
     }
   }
 }
