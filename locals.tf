@@ -18,4 +18,4 @@ locals {
     forwarding_rule = "${var.name_prefix}-forwarding-rule"
   }
 }
-
+#
