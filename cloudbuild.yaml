@@ -29,12 +29,6 @@ steps:
 options:
   logging: CLOUD_LOGGING_ONLY
 
-# Store Terraform plan file as an artifact (optional but useful for debugging)
-artifacts:
-  objects:
-    location: gs://powerful-bounty-469218-q0-tfstate/artifacts/
-    paths: ["tfplan"]
-
 substitutions:
   _REGION: "us-central1"
 
