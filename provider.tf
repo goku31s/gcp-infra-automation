@@ -13,17 +13,17 @@ terraform {
   }
 
   backend "gcs" {
-    bucket = "powerful-bounty-469218-q0-tfstate" 
+    bucket = "academic-project-469620" 
     prefix = "terraform/state"                 
   }
 }
 
 provider "google" {
-  project = "powerful-bounty-469218-q0"
+  project = "academic-project-469620"
   region  = "us-central1"
 }
 
 provider "google-beta" {
-  project = "powerful-bounty-469218-q0"
+  project = "academic-project-469620"
   region  = "us-central1"
 }
