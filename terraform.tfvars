@@ -1,4 +1,4 @@
-project_id               = "powerful-bounty-469218-q0"
+project_id               = "academic-project-469620"
 region                   = "us-central1"
 zone                     = "us-central1-c"
 instance_type            = "e2-medium"
