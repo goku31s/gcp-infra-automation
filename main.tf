@@ -615,7 +615,7 @@ body::before {{
 <div class="container">
   <div class="content">
     <div class="header">
-      <h1 class="title">🚀 GCP Academic Project</h1>
+      <h1 class="title">GCP Academic Project</h1>
       <p class="subtitle">Cloud Infrastructure & DevOps Excellence</p>
       
       <div class="student-info">
