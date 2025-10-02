@@ -1,5 +1,5 @@
 locals {
-  web_tag = "web"
+  web_tag = "web-tiger"
 
   names = {
     network        = "${var.name_prefix}-vpc"
