@@ -37,4 +37,4 @@ variable "autoscaler_max_replicas" {
   description = "Maximum size of the MIG"
   type        = number
 }
-#
+
