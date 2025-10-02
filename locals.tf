@@ -2,7 +2,7 @@ locals {
   web_tag = "web"
 
   names = {
-    network        = "${var.name_prefix}-vpc"
+    network        = "${var.name_prefix}-vpc-01"
     subnet         = "${var.name_prefix}-subnet"
     router         = "${var.name_prefix}-router"
     nat            = "${var.name_prefix}-nat"
