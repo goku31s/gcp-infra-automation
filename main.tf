@@ -892,7 +892,7 @@ resource "google_compute_autoscaler" "asg" {
     cooldown_period = 60
 
     cpu_utilization {
-      target = 0.5
+      target = 0.005
     }
   }
 }
