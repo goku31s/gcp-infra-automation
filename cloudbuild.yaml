@@ -8,28 +8,50 @@ steps:
       - |
         terraform init 
 
-  # Step 2: Terraform plan
+  # Step 2: Terraform plan (skip if _DESTROY=true)
   - name: hashicorp/terraform:1.5.7
     id: Terraform Plan
     entrypoint: sh
     args:
       - -c
       - |
-        terraform plan -out=tfplan
+        if [ "$_DESTROY" != "true" ]; then
+          terraform plan -out=tfplan
+        else
+          echo "Skipping terraform plan since _DESTROY=true"
+        fi
 
-  # Step 3: Terraform apply (auto-approve for CI/CD)
+  # Step 3: Terraform apply (skip if _DESTROY=true)
   - name: hashicorp/terraform:1.5.7
     id: Terraform Apply
     entrypoint: sh
     args:
       - -c
       - |
-        terraform apply -auto-approve tfplan
+        if [ "$_DESTROY" != "true" ]; then
+          terraform apply -auto-approve tfplan
+        else
+          echo "Skipping terraform apply since _DESTROY=true"
+        fi
+
+  # Step 4: Terraform destroy (runs only if _DESTROY=true)
+  - name: hashicorp/terraform:1.5.7
+    id: Terraform Destroy
+    entrypoint: sh
+    args:
+      - -c
+      - |
+        if [ "$_DESTROY" = "true" ]; then
+          terraform destroy -auto-approve
+        else
+          echo "Skipping terraform destroy since _DESTROY is not true"
+        fi
 
 options:
   logging: CLOUD_LOGGING_ONLY
 
 substitutions:
   _REGION: "us-central1"
+  _DESTROY: "false"   
 
 timeout: 1200s
