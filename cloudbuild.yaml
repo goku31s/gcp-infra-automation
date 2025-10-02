@@ -52,6 +52,6 @@ options:
 
 substitutions:
   _REGION: "us-central1"
-  _DESTROY: "false"   
+  _DESTROY: "true"   
 
 timeout: 1200s
