@@ -854,7 +854,7 @@ resource "google_compute_instance_group_manager" "mig" {
   name               = local.names.mig
   base_instance_name = "web"
   zone               = var.zone
-  target_size        = 2
+  target_size        = 1
 
   version {
     instance_template = google_compute_instance_template.instance_template.self_link
