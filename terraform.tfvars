@@ -1,6 +1,6 @@
 project_id               = "academic-project-469620"
-region                   = "us-central1"
-zone                     = "us-central1-c"
+region                   = "asia-south2"
+zone                     = "asia-south2-c"
 instance_type            = "e2-medium"
 subnet_cidr              = "10.0.1.0/24"
 name_prefix              = "webapp"
