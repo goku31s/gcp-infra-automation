@@ -51,6 +51,7 @@ options:
   logging: CLOUD_LOGGING_ONLY
 
 substitutions:
+  _REGION: "asia-south2"
   _DESTROY: "false"   
 
 timeout: 1200s
