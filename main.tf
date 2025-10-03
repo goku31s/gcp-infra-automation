@@ -622,7 +622,7 @@ body::before {{
         <div class="student-card">
           <div class="student-details">
             <h3 class="student-name">Sukrit Singh</h3>
-            <p class="student-id">BITS ID: 2021XXBH134</p>
+            <p class="student-id">BITS ID: 202117BH134</p>
           </div>
         </div>
         <div class="project-title">
@@ -696,7 +696,7 @@ body::before {{
         </div>
       </div>
       <div class="footer-content">
-        © 2025 GCP Academic Project | Sukrit Singh (2021XXBH134) | Modern Cloud Infrastructure Demo
+        © 2025 GCP Academic Project | Sukrit Singh (202117BH134) | Modern Cloud Infrastructure Demo
       </div>
     </div>
   </div>
