@@ -52,7 +52,6 @@ options:
 
 substitutions:
   _REGION: "asia-south2"
-  _DESTROY: "true"   
+  _DESTROY: "false"   
 
 timeout: 1200s
-#
